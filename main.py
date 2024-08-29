@@ -36,15 +36,14 @@ class RtfConversionError(Exception):
 
 def print_ascii():
     ascii_art = """
-#    _____ _______ ______                                            
-#   |  __ \\__   __|  ____|                                           
-#   | |__) | | |  | |__                                              
-#   |  ___/  | |  |  __|    _____        _____   _____ ______ _____  
-#   | | \\ \\  | |  | |      |  __ \\_/\\   |  __ \\_/ ____|  ____|  __ \\ 
-#   |_|  \\_\\ |_|  |_|      | |__)_/  \\  | |__) | (___ | |__  | |__) |
-#                          |  ___/_/\\_\\ |  ___/ \\___ \\|  __| |  ___/ 
-#                          | | _/ ____ \\| | \\ \\ ____) | |____| | \\ \\ 
-#   by Fabiano             |_|_/_/    \\_\\_|  \\_\\_____/|______|_|  \\_\\
+#  _____ _______ ______                                           
+# |  __ \\__   __|  ____|                                          
+# | |__) | | |  | |__    _____        _____   _____ ______ _____  
+# |  ___/  | |  |  __|  |  __ \\_/\\   |  __ \\_/ ____|  ____|  __ \\ 
+# | | \\ \\  | |  | |     | |__)_/  \\  | |__) | (___ | |__  | |__) |
+# |_|  \\_\\ |_|  |_|     |  ___/_/\\_\\ |  ___/ \\___ \\|  __| |  ___/ 
+#                       | | _/ ____ \\| | \\ \\ ____) | |____| | \\ \\ 
+# by Fabiano            |_|_/_/    \\_\\_|  \\_\\_____/|______|_|  \\_\\
 """
     console = Console()
     console.print(ascii_art, style="bold red on black")
@@ -88,13 +87,11 @@ def parser(string: str):
 def extract_relative_folder(file_path: Path, root_folder:Path) -> str:
     parent = str(file_path.absolute().parent)
     relative = parent.replace(str(root_folder), "")
-    if relative.startswith("\\"):
+    if relative.startswith(os.sep):
         relative = relative[1:]
-    relative = relative.replace("\\", "-")
+    relative = relative.replace(os.sep, "_")
     if len(relative) < 1:
         relative = "Principal"
-        # print(f"\n\n{relative}\n\n")
-        # time.sleep(10)
     return relative
 
 
@@ -103,7 +100,8 @@ def main_loop():
     options = {"1": file_converter,
                "2": rtf_parser,
                "3": converter_and_parser,
-               "4": program_exit}
+               "4": create_csv_file,
+               "5": program_exit}
     config = config_file_loader()
     try:
         workdir = ask_for_work_dir()
@@ -260,11 +258,64 @@ def rtf_parser(workdir: Path):
 
 def converter_and_parser(workdir: Path):
     conv_message = file_converter(workdir)
-    # time.sleep(3)
     parser_message = rtf_parser(workdir)
     message = Text()
     message.append(conv_message)
     message.append(parser_message)
+    return message
+
+def create_csv_file(workdir: Path):
+    # config = config_file_loader()
+    console = Console()
+
+    console.print("\nPreparando criação de arquivos CSV para importação ...")
+    time.sleep(2)
+
+    masks = []
+    d_masks = {}
+    for item in workdir.glob(f"**/*.rtf"):
+        mask_name = " ".join(item.stem.split())
+        mask_sex = "I"
+        mask_id = "ID-EXAME\n"
+
+        with open(item, "r") as _file:
+            rtf_content = _file.read()
+
+        new_mask = [mask_name, mask_name, rtf_content, mask_sex, mask_id]
+        relative_folder = extract_relative_folder(item.absolute(), workdir.absolute())
+        if relative_folder not in d_masks.keys():
+            d_masks[relative_folder] = []
+            d_masks[relative_folder].append(new_mask)
+        else:
+            d_masks[relative_folder].append(new_mask)
+        masks.append(new_mask)
+
+    message = Text()
+    csv_file_parsed = Path(workdir / "Mascaras-Completo-Arquivo-Unico.csv")
+    with open(csv_file_parsed, "w", encoding="utf-8") as _file:
+        header = f"pleresSql|matriz|{len(masks)}|{len(masks)}|1|1\n"
+        _file.write(header)
+        for mask in masks:
+            string = "|".join(mask)
+            _file.write(string)
+    rel_path = extract_path_parts(csv_file_parsed.absolute())
+    message.append(f"\nArquivo ", style="bold green")
+    message.append(f"{rel_path} ", style="magenta")
+    message.append("criado com sucesso\n", style="bold green")
+
+    for key, value in d_masks.items():
+        csv_file_parsed = Path(workdir / f"Mascaras_{key}.csv")
+        with open(csv_file_parsed, "w", encoding="utf-8") as _file:
+            header = f"pleresSql|matriz|{len(value)}|{len(value)}|1|1\n"
+            _file.write(header)
+            for mask in value:
+                string = "|".join(mask)
+                _file.write(string)
+            rel_path = extract_path_parts(csv_file_parsed.absolute())
+            message.append(f"Arquivo ", style="bold green")
+            message.append(f"{rel_path} ", style="magenta")
+            message.append("criado com sucesso\n", style="bold green")
+
     return message
 
 
